@@ -1,5 +1,5 @@
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import './App.css'
 
 const tools = [
@@ -19,9 +19,16 @@ function App() {
   const [draftShape, setDraftShape] = useState(null)
   const [isDrawing, setIsDrawing] = useState(false)
 
+  const [drawStart, setDrawStart] = useState(null)
+  const canvasRef = useRef(null)
+
+  const [selectedShapeId, setSelectedShapeId] = useState(null)
+  const [isMoving, setIsMoving] = useState(false)
+  const [moveOffset, setMoveOffset] = useState({ x: 0, y: 0 })
     
+  
   const getCanvasPoint = (event) => {
-    const rect = event.currentTarget.getBoundingClientRect()
+    const rect = canvasRef.current.getBoundingClientRect()
 
     return {
       x: event.clientX - rect.left,
@@ -29,13 +36,15 @@ function App() {
     }
   }
 
+
+
   const handlePointerDown = (event) => {
     if (activeTool !== 'rectangle' && activeTool !== 'circle') return
 
     const point = getCanvasPoint(event)
-
     event.currentTarget.setPointerCapture(event.pointerId)
 
+    setDrawStart(point)
     setDraftShape({
       id: crypto.randomUUID(),
       type: activeTool,
@@ -48,8 +57,28 @@ function App() {
     setIsDrawing(true)
   }
 
+
+
   const handlePointerMove = (event) => {
-    if (!isDrawing || !draftShape) return
+    if (isMoving && selectedShapeId) {
+      const point = getCanvasPoint(event)
+
+      setShapes((current) =>
+        current.map((shape) =>
+          shape.id === selectedShapeId
+            ? {
+                ...shape,
+                x: point.x - moveOffset.x,
+                y: point.y - moveOffset.y,
+              }
+            : shape
+        )
+      )
+
+      return
+    }
+
+    if (!isDrawing || !drawStart) return
 
     const point = getCanvasPoint(event)
 
@@ -58,15 +87,23 @@ function App() {
 
       return {
         ...current,
-        x: Math.min(current.x, point.x),
-        y: Math.min(current.y, point.y),
-        width: Math.abs(point.x - current.x),
-        height: Math.abs(point.y - current.y),
+        x: Math.min(drawStart.x, point.x),
+        y: Math.min(drawStart.y, point.y),
+        width: Math.abs(point.x - drawStart.x),
+        height: Math.abs(point.y - drawStart.y),
       }
     })
   }
 
+
+
+
   const handlePointerUp = () => {
+    if (isMoving) {
+      setIsMoving(false)
+      return
+    }
+
     if (!isDrawing || !draftShape) return
 
     if (draftShape.width > 2 && draftShape.height > 2) {
@@ -74,8 +111,11 @@ function App() {
     }
 
     setDraftShape(null)
+    setDrawStart(null)
     setIsDrawing(false)
   }
+
+
 
 
 
@@ -145,6 +185,8 @@ function App() {
 
           <div className="canvas">
             <svg
+              ref={canvasRef}
+              onClick={() => setSelectedShapeId(null)}
               className="canvas-surface"
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
@@ -168,8 +210,31 @@ function App() {
                     rx="6"
                     fill="#E3CAA5"
                     fillOpacity="0.55"
-                    stroke="#AD8B73"
-                    strokeWidth="2"
+                    stroke={selectedShapeId === shape.id ? '#704D39' : '#AD8B73'}
+                    strokeWidth={selectedShapeId === shape.id ? 3 : 2}
+
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setSelectedShapeId(shape.id)
+                    }}
+                    
+                    onPointerDown={(event) => {
+                      if (activeTool !== 'select') return
+
+                      event.stopPropagation()
+
+                      const point = getCanvasPoint(event)
+
+                      setSelectedShapeId(shape.id)
+                      setIsMoving(true)
+                      setMoveOffset({
+                        x: point.x - shape.x,
+                        y: point.y - shape.y,
+                      })
+
+                      event.currentTarget.setPointerCapture(event.pointerId)
+                    }}
+
                   />
                 ) : (
                   <ellipse
@@ -180,8 +245,32 @@ function App() {
                     ry={shape.height / 2}
                     fill="#CEAB93"
                     fillOpacity="0.4"
-                    stroke="#AD8B73"
-                    strokeWidth="2"
+                    stroke={selectedShapeId === shape.id ? '#704D39' : '#AD8B73'}
+                    strokeWidth={selectedShapeId === shape.id ? 3 : 2}
+
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setSelectedShapeId(shape.id)
+                    }}
+                    
+                    onPointerDown={(event) => {
+                      if (activeTool !== 'select') return
+
+                      event.stopPropagation()
+
+                      const point = getCanvasPoint(event)
+
+                      setSelectedShapeId(shape.id)
+                      setIsMoving(true)
+                      setMoveOffset({
+                        x: point.x - shape.x,
+                        y: point.y - shape.y,
+                      })
+
+                      event.currentTarget.setPointerCapture(event.pointerId)
+                    }}
+
+
                   />
                 )
               )}
