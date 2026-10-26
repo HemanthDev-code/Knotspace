@@ -3,7 +3,7 @@ import { useRef, useState } from 'react'
 import './App.css'
 
 const tools = [
-  { id: 'select', label: 'Select', icon: '↖' },
+  { id: 'select', label: 'Select', icon: 'hand' },
   { id: 'hand', label: 'Move canvas', icon: '✥' },
   { id: 'rectangle', label: 'Rectangle', icon: '▱' },
   { id: 'circle', label: 'Circle', icon: '○' },
@@ -16,6 +16,12 @@ function App() {
 
   
   const [shapes, setShapes] = useState([])
+
+  
+  const [past, setPast] = useState([])
+  const [future, setFuture] = useState([])
+
+
   const [draftShape, setDraftShape] = useState(null)
   const [isDrawing, setIsDrawing] = useState(false)
 
@@ -107,7 +113,7 @@ function App() {
     if (!isDrawing || !draftShape) return
 
     if (draftShape.width > 2 && draftShape.height > 2) {
-      setShapes((current) => [...current, draftShape])
+      saveHistory([...shapes, draftShape])
     }
 
     setDraftShape(null)
@@ -115,12 +121,85 @@ function App() {
     setIsDrawing(false)
   }
 
+  
+const handleKeyDown = (event) => {
+
+  
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+    event.preventDefault()
+
+    if (event.shiftKey) {
+      handleRedo()
+    } else {
+      handleUndo()
+    }
+
+    return
+  }
+
+  if (
+    (event.ctrlKey || event.metaKey) &&
+    event.key.toLowerCase() === 'y'
+  ) {
+    event.preventDefault()
+    handleRedo()
+    return
+  }
+
+
+  if (event.key !== 'Delete' && event.key !== 'Backspace') return
+
+  // Don't delete shapes while typing in an input or text area.
+  const tag = event.target.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || event.target.isContentEditable) {
+    return
+  }
+
+  if (!selectedShapeId) return
+
+  event.preventDefault()
+
+  saveHistory(
+  shapes.filter((shape) => shape.id !== selectedShapeId)
+  )
+
+  setSelectedShapeId(null)
+}
+
+
+const handleUndo = () => {
+  if (past.length === 0) return
+
+  const previousShapes = past[past.length - 1]
+
+  setPast((current) => current.slice(0, -1))
+  setFuture((current) => [...current, shapes])
+  setShapes(previousShapes)
+  setSelectedShapeId(null)
+}
+
+const handleRedo = () => {
+  if (future.length === 0) return
+
+  const nextShapes = future[future.length - 1]
+
+  setFuture((current) => current.slice(0, -1))
+  setPast((current) => [...current, shapes])
+  setShapes(nextShapes)
+  setSelectedShapeId(null)
+}
+
+const saveHistory = (nextShapes) => {
+  setPast((current) => [...current, shapes])
+  setFuture([])
+  setShapes(nextShapes)
+}
 
 
 
 
   return (
-    <main className="workspace">
+    <main className="workspace" onKeyDown={handleKeyDown} tabIndex={0}>
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark">K</span>
@@ -158,7 +237,25 @@ function App() {
                 }`}
                 onClick={() => setActiveTool(tool.id)}
               >
-                <span className="tool-icon">{tool.icon}</span>
+                <span className="tool-icon">
+                  {tool.id === 'select' ? (
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M8 11V5a2 2 0 0 1 4 0v5-3a2 2 0 0 1 4 0v3-2a2 2 0 0 1 4 0v7a7 7 0 0 1-7 7h-1a6 6 0 0 1-4.5-2L4 15a2 2 0 0 1 3-2l2 2" />
+                    </svg>
+                  ) : (
+                    tool.icon
+                  )}
+                </span>
                 <span>{tool.label}</span>
               </button>
             ))}
@@ -192,12 +289,18 @@ function App() {
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerUp}
+
               style={{
                 cursor:
                   activeTool === 'rectangle' || activeTool === 'circle'
                     ? 'crosshair'
-                    : 'default',
+                    : activeTool === 'select'
+                      ? isMoving
+                        ? 'grabbing'
+                        : 'grab'
+                      : 'default',
               }}
+
             >
               {shapes.map((shape) =>
                 shape.type === 'rectangle' ? (
@@ -226,6 +329,8 @@ function App() {
                       const point = getCanvasPoint(event)
 
                       setSelectedShapeId(shape.id)
+                      setPast((current) => [...current, shapes])
+                      setFuture([])
                       setIsMoving(true)
                       setMoveOffset({
                         x: point.x - shape.x,
@@ -233,6 +338,15 @@ function App() {
                       })
 
                       event.currentTarget.setPointerCapture(event.pointerId)
+                    }}
+
+                    style={{
+                      cursor:
+                        activeTool === 'select'
+                          ? isMoving
+                            ? 'grabbing'
+                            : 'grab'
+                          : 'inherit',
                     }}
 
                   />
@@ -261,6 +375,8 @@ function App() {
                       const point = getCanvasPoint(event)
 
                       setSelectedShapeId(shape.id)
+                      setPast((current) => [...current, shapes])
+                      setFuture([])
                       setIsMoving(true)
                       setMoveOffset({
                         x: point.x - shape.x,
@@ -269,7 +385,14 @@ function App() {
 
                       event.currentTarget.setPointerCapture(event.pointerId)
                     }}
-
+                    style={{
+                      cursor:
+                        activeTool === 'select'
+                          ? isMoving
+                            ? 'grabbing'
+                            : 'grab'
+                          : 'inherit',
+                    }}
 
                   />
                 )
