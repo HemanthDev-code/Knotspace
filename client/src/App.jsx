@@ -1,6 +1,9 @@
 
 import { useRef, useState } from 'react'
+import Canvas from './canvas/Canvas'
+import useCanvas from './canvas/useCanvas'
 import './App.css'
+
 
 const tools = [
   { id: 'select', label: 'Select', icon: 'hand' },
@@ -13,189 +16,34 @@ const tools = [
 
 function App() {
   const [activeTool, setActiveTool] = useState('select')
-
   
-  const [shapes, setShapes] = useState([])
+  const canvasState = useCanvas(activeTool)
 
-  
-  const [past, setPast] = useState([])
-  const [future, setFuture] = useState([])
-
-
-  const [draftShape, setDraftShape] = useState(null)
-  const [isDrawing, setIsDrawing] = useState(false)
-
-  const [drawStart, setDrawStart] = useState(null)
-  const canvasRef = useRef(null)
-
-  const [selectedShapeId, setSelectedShapeId] = useState(null)
-  const [isMoving, setIsMoving] = useState(false)
-  const [moveOffset, setMoveOffset] = useState({ x: 0, y: 0 })
-    
-  
-  const getCanvasPoint = (event) => {
-    const rect = canvasRef.current.getBoundingClientRect()
-
-    return {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top,
-    }
-  }
-
-
-
-  const handlePointerDown = (event) => {
-    if (activeTool !== 'rectangle' && activeTool !== 'circle') return
-
-    const point = getCanvasPoint(event)
-    event.currentTarget.setPointerCapture(event.pointerId)
-
-    setDrawStart(point)
-    setDraftShape({
-      id: crypto.randomUUID(),
-      type: activeTool,
-      x: point.x,
-      y: point.y,
-      width: 0,
-      height: 0,
-    })
-
-    setIsDrawing(true)
-  }
-
-
-
-  const handlePointerMove = (event) => {
-    if (isMoving && selectedShapeId) {
-      const point = getCanvasPoint(event)
-
-      setShapes((current) =>
-        current.map((shape) =>
-          shape.id === selectedShapeId
-            ? {
-                ...shape,
-                x: point.x - moveOffset.x,
-                y: point.y - moveOffset.y,
-              }
-            : shape
-        )
-      )
-
-      return
-    }
-
-    if (!isDrawing || !drawStart) return
-
-    const point = getCanvasPoint(event)
-
-    setDraftShape((current) => {
-      if (!current) return null
-
-      return {
-        ...current,
-        x: Math.min(drawStart.x, point.x),
-        y: Math.min(drawStart.y, point.y),
-        width: Math.abs(point.x - drawStart.x),
-        height: Math.abs(point.y - drawStart.y),
-      }
-    })
-  }
-
-
-
-
-  const handlePointerUp = () => {
-    if (isMoving) {
-      setIsMoving(false)
-      return
-    }
-
-    if (!isDrawing || !draftShape) return
-
-    if (draftShape.width > 2 && draftShape.height > 2) {
-      saveHistory([...shapes, draftShape])
-    }
-
-    setDraftShape(null)
-    setDrawStart(null)
-    setIsDrawing(false)
-  }
-
-  
-const handleKeyDown = (event) => {
-
-  
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
-    event.preventDefault()
-
-    if (event.shiftKey) {
-      handleRedo()
-    } else {
-      handleUndo()
-    }
-
-    return
-  }
-
-  if (
-    (event.ctrlKey || event.metaKey) &&
-    event.key.toLowerCase() === 'y'
-  ) {
-    event.preventDefault()
-    handleRedo()
-    return
-  }
-
-
-  if (event.key !== 'Delete' && event.key !== 'Backspace') return
-
-  // Don't delete shapes while typing in an input or text area.
-  const tag = event.target.tagName
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || event.target.isContentEditable) {
-    return
-  }
-
-  if (!selectedShapeId) return
-
-  event.preventDefault()
-
-  saveHistory(
-  shapes.filter((shape) => shape.id !== selectedShapeId)
-  )
-
-  setSelectedShapeId(null)
-}
-
-
-const handleUndo = () => {
-  if (past.length === 0) return
-
-  const previousShapes = past[past.length - 1]
-
-  setPast((current) => current.slice(0, -1))
-  setFuture((current) => [...current, shapes])
-  setShapes(previousShapes)
-  setSelectedShapeId(null)
-}
-
-const handleRedo = () => {
-  if (future.length === 0) return
-
-  const nextShapes = future[future.length - 1]
-
-  setFuture((current) => current.slice(0, -1))
-  setPast((current) => [...current, shapes])
-  setShapes(nextShapes)
-  setSelectedShapeId(null)
-}
-
-const saveHistory = (nextShapes) => {
-  setPast((current) => [...current, shapes])
-  setFuture([])
-  setShapes(nextShapes)
-}
-
-
+  const {
+    shapes,
+    setShapes,
+    past,
+    future,
+    draftShape,
+    isDrawing,
+    drawStart,
+    selectedShapeId,
+    setSelectedShapeId,
+    isMoving,
+    setIsMoving,
+    moveOffset,
+    setMoveOffset,
+    canvasRef,
+    getCanvasPoint,
+    handlePointerDown,
+    handlePointerMove,
+    handlePointerUp,
+    handleKeyDown,
+    handleUndo,
+    handleRedo,
+    saveHistory,
+    saveMoveHistory,
+  } = canvasState
 
 
   return (
@@ -279,169 +127,23 @@ const saveHistory = (nextShapes) => {
             </span>
           </div>
 
+          <Canvas
+            shapes={shapes}
+            draftShape={draftShape}
+            selectedShapeId={selectedShapeId}
+            activeTool={activeTool}
+            isMoving={isMoving}
+            canvasRef={canvasRef}
+            getCanvasPoint={getCanvasPoint}
+            handlePointerDown={handlePointerDown}
+            handlePointerMove={handlePointerMove}
+            handlePointerUp={handlePointerUp}
+            setSelectedShapeId={setSelectedShapeId}
+            setIsMoving={setIsMoving}
+            setMoveOffset={setMoveOffset}
+            saveMoveHistory={saveMoveHistory}
+          />
 
-          <div className="canvas">
-            <svg
-              ref={canvasRef}
-              onClick={() => setSelectedShapeId(null)}
-              className="canvas-surface"
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-
-              style={{
-                cursor:
-                  activeTool === 'rectangle' || activeTool === 'circle'
-                    ? 'crosshair'
-                    : activeTool === 'select'
-                      ? isMoving
-                        ? 'grabbing'
-                        : 'grab'
-                      : 'default',
-              }}
-
-            >
-              {shapes.map((shape) =>
-                shape.type === 'rectangle' ? (
-                  <rect
-                    key={shape.id}
-                    x={shape.x}
-                    y={shape.y}
-                    width={shape.width}
-                    height={shape.height}
-                    rx="6"
-                    fill="#E3CAA5"
-                    fillOpacity="0.55"
-                    stroke={selectedShapeId === shape.id ? '#704D39' : '#AD8B73'}
-                    strokeWidth={selectedShapeId === shape.id ? 3 : 2}
-
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      setSelectedShapeId(shape.id)
-                    }}
-                    
-                    onPointerDown={(event) => {
-                      if (activeTool !== 'select') return
-
-                      event.stopPropagation()
-
-                      const point = getCanvasPoint(event)
-
-                      setSelectedShapeId(shape.id)
-                      setPast((current) => [...current, shapes])
-                      setFuture([])
-                      setIsMoving(true)
-                      setMoveOffset({
-                        x: point.x - shape.x,
-                        y: point.y - shape.y,
-                      })
-
-                      event.currentTarget.setPointerCapture(event.pointerId)
-                    }}
-
-                    style={{
-                      cursor:
-                        activeTool === 'select'
-                          ? isMoving
-                            ? 'grabbing'
-                            : 'grab'
-                          : 'inherit',
-                    }}
-
-                  />
-                ) : (
-                  <ellipse
-                    key={shape.id}
-                    cx={shape.x + shape.width / 2}
-                    cy={shape.y + shape.height / 2}
-                    rx={shape.width / 2}
-                    ry={shape.height / 2}
-                    fill="#CEAB93"
-                    fillOpacity="0.4"
-                    stroke={selectedShapeId === shape.id ? '#704D39' : '#AD8B73'}
-                    strokeWidth={selectedShapeId === shape.id ? 3 : 2}
-
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      setSelectedShapeId(shape.id)
-                    }}
-                    
-                    onPointerDown={(event) => {
-                      if (activeTool !== 'select') return
-
-                      event.stopPropagation()
-
-                      const point = getCanvasPoint(event)
-
-                      setSelectedShapeId(shape.id)
-                      setPast((current) => [...current, shapes])
-                      setFuture([])
-                      setIsMoving(true)
-                      setMoveOffset({
-                        x: point.x - shape.x,
-                        y: point.y - shape.y,
-                      })
-
-                      event.currentTarget.setPointerCapture(event.pointerId)
-                    }}
-                    style={{
-                      cursor:
-                        activeTool === 'select'
-                          ? isMoving
-                            ? 'grabbing'
-                            : 'grab'
-                          : 'inherit',
-                    }}
-
-                  />
-                )
-              )}
-
-              {draftShape && (
-                draftShape.type === 'rectangle' ? (
-                  <rect
-                    x={draftShape.x}
-                    y={draftShape.y}
-                    width={draftShape.width}
-                    height={draftShape.height}
-                    rx="6"
-                    fill="#E3CAA5"
-                    fillOpacity="0.55"
-                    stroke="#AD8B73"
-                    strokeWidth="2"
-                    strokeDasharray="5 4"
-                  />
-                ) : (
-                  <ellipse
-                    cx={draftShape.x + draftShape.width / 2}
-                    cy={draftShape.y + draftShape.height / 2}
-                    rx={draftShape.width / 2}
-                    ry={draftShape.height / 2}
-                    fill="#CEAB93"
-                    fillOpacity="0.4"
-                    stroke="#AD8B73"
-                    strokeWidth="2"
-                    strokeDasharray="5 4"
-                  />
-                )
-              )}
-            </svg>
-
-            {shapes.length === 0 && !draftShape && (
-              <div className="empty-state">
-                <div className="empty-icon">◇</div>
-                <h2>Your ideas start here</h2>
-                <p>
-                  Choose Rectangle or Circle, then click and drag
-                  on the canvas to draw your first shape.
-                </p>
-                <span className="canvas-hint">
-                  Your shapes will appear here.
-                </span>
-              </div>
-            )}
-          </div>
 
 
           <footer className="canvas-footer">
